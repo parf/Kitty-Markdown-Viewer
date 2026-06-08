@@ -1,10 +1,10 @@
-# PRF-8: Kitty Markdown CLI Renderer
+# PRF-8: Cat Markdown CLI Renderer
 
 Author: Serg Parf <sergey.porfiriev@gmail.com>
 
 ## Goal
 
-Build `kitty-md`, a small CLI filter that renders Markdown with latest-kitty terminal features instead of portable lowest-common-denominator terminal output.
+Build `cat-md`, a small CLI filter that renders Markdown with latest-kitty terminal features instead of portable lowest-common-denominator terminal output.
 
 Core requirements:
 
@@ -17,7 +17,7 @@ Core requirements:
 - Support local files, stdin, explicit `-` stdin, and remote Markdown URLs.
 - Support GitHub-style pipe tables with Unicode boxes and wrapped cell content.
 - Support light/dark themes, defaulting to kitty background detection.
-- Auto-create commented TOML config/theme files under `~/.config/kitty-md/`.
+- Auto-create commented TOML config/theme files under `~/.config/cat-md/`.
 - Always emit kitty/color/control sequences, including when stdout is redirected.
 
 ## Current Implementation
@@ -49,16 +49,16 @@ Package layout:
 Implemented command:
 
 ```bash
-kitty-md
-cat README.md | kitty-md
-kitty-md README.md
-kitty-md file1.md - file2.md
-kitty-md https://example.com/README.md
+cat-md
+cat README.md | cat-md
+cat-md README.md
+cat-md file1.md - file2.md
+cat-md https://example.com/README.md
 ```
 
 Behavior:
 
-- `kitty-md` with no args and interactive stdin shows help.
+- `cat-md` with no args and interactive stdin shows help.
 - No-arg piped stdin renders Markdown.
 - `-` reads stdin explicitly among file/URL inputs.
 - URL inputs follow redirects and use a 10 second timeout.
@@ -73,9 +73,9 @@ Behavior:
 Default files:
 
 ```text
-~/.config/kitty-md/config.toml
-~/.config/kitty-md/themes/dark.toml
-~/.config/kitty-md/themes/light.toml
+~/.config/cat-md/config.toml
+~/.config/cat-md/themes/dark.toml
+~/.config/cat-md/themes/light.toml
 ```
 
 Rules:
@@ -115,20 +115,20 @@ Normal package entrypoint:
 
 ```bash
 pip install .
-kitty-md --help
+cat-md --help
 ```
 
 Self-contained Python-required executable:
 
 ```bash
 python3 scripts/build_zipapp.py
-./dist/kitty-md --help
+./dist/cat-md --help
 ```
 
 Local install currently used:
 
 ```bash
-install -m 755 dist/kitty-md /home/parf/bin/kitty-md
+install -m 755 dist/cat-md /home/parf/bin/cat-md
 ```
 
 ## Verification
@@ -138,7 +138,7 @@ Automated:
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 python3 scripts/build_zipapp.py
-/home/parf/bin/kitty-md --help
+/home/parf/bin/cat-md --help
 ```
 
 Manual kitty checks:

@@ -6,7 +6,7 @@ import os
 import tomllib
 
 
-DEFAULT_CONFIG = """# kitty-md configuration.
+DEFAULT_CONFIG = """# cat-md configuration.
 # This file is created silently on first run. CLI flags override these values.
 
 [render]
@@ -48,25 +48,41 @@ timeout_seconds = 10
 # Remote Markdown auth headers/cookies are intentionally out of scope for v1.
 
 [themes]
-# Theme files are TOML files under ~/.config/kitty-md/themes by default.
+# Theme files are TOML files under ~/.config/cat-md/themes by default.
 dark = "themes/dark.toml"
 light = "themes/light.toml"
 """
 
 
-DEFAULT_DARK_THEME = """# kitty-md dark theme.
+DEFAULT_DARK_THEME = """# cat-md dark theme.
 
 [colors]
 h1 = "#ff5f87"
 h2 = "#5fd7ff"
 h3 = "#ffd75f"
 h4 = "#87ffaf"
+h5 = "#d7afff"
+h6 = "#9ca3af"
 body = "#e6e6e6"
 muted = "#9ca3af"
 link = "#5fafff"
 link_underline = "#5fafff"
 inline_code = "#ffaf5f"
 code_block = "#d7d7d7"
+diff_remove_fg = "#ff5f5f"
+diff_remove_bg = "#3a1010"
+diff_add_fg = "#5fff87"
+diff_add_bg = "#103a1a"
+json_key = "#5fd7ff"
+json_string = "#ffd75f"
+json_number = "#d7afff"
+json_literal = "#87ffaf"
+code_keyword = "#ff5f87"
+code_function = "#5fd7ff"
+code_type = "#d7afff"
+code_macro = "#87ffaf"
+date = "#ffaf5f"
+number_major = "#ffd75f"
 blockquote = "#afd75f"
 table_border = "#5f8787"
 table_header = "#ffffff"
@@ -76,19 +92,35 @@ error = "#ff5f5f"
 """
 
 
-DEFAULT_LIGHT_THEME = """# kitty-md light theme.
+DEFAULT_LIGHT_THEME = """# cat-md light theme.
 
 [colors]
 h1 = "#d7005f"
 h2 = "#005faf"
 h3 = "#af5f00"
 h4 = "#00875f"
+h5 = "#5f00af"
+h6 = "#606060"
 body = "#202020"
 muted = "#606060"
 link = "#005fd7"
 link_underline = "#005fd7"
 inline_code = "#af5f00"
 code_block = "#303030"
+diff_remove_fg = "#af0000"
+diff_remove_bg = "#ffd7d7"
+diff_add_fg = "#008700"
+diff_add_bg = "#d7ffd7"
+json_key = "#005faf"
+json_string = "#af5f00"
+json_number = "#5f00af"
+json_literal = "#00875f"
+code_keyword = "#af005f"
+code_function = "#005faf"
+code_type = "#5f00af"
+code_macro = "#00875f"
+date = "#af5f00"
+number_major = "#875f00"
 blockquote = "#5f8700"
 table_border = "#5f8787"
 table_header = "#000000"
@@ -125,7 +157,7 @@ def config_home() -> Path:
 
 
 def default_config_dir() -> Path:
-    return config_home() / "kitty-md"
+    return config_home() / "cat-md"
 
 
 def default_config_path() -> Path:
@@ -191,4 +223,3 @@ def load_config(config_path: Path | None = None) -> Config:
         dark_theme_path=_path_from_config(cfg_dir, str(themes.get("dark", "themes/dark.toml"))),
         light_theme_path=_path_from_config(cfg_dir, str(themes.get("light", "themes/light.toml"))),
     )
-

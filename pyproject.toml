@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-kitty-md = "kitty_markdown_viewer.cli:main"
+cat-md = "kitty_markdown_viewer.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

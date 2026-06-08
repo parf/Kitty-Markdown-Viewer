@@ -23,7 +23,46 @@ BEL = "\x07"
 ST = ESC + "\\"
 RESET = ESC + "[0m"
 URL_RE = re.compile(r"(?P<url>(?:https?://|ftp://|mailto:)[^\s<>()]+)", re.IGNORECASE)
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+LARGE_NUMBER_RE = re.compile(r"(?<![\d-])\d{4,}(?![\d-])")
 BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
+TASK_RE = re.compile(r"(?P<prefix>(?:^|(?<=\n)|[•*-]\s+))\[(?P<mark>[ xX])\]\s+")
+CALLOUT_RE = re.compile(r"^\[!(?P<kind>[A-Za-z]+)\]\s*(?P<title>.*)$")
+JSON_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
+JSON_NUMBER_RE = re.compile(r"(?<![\w.])-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.])")
+JSON_LITERAL_RE = re.compile(r"\b(?:true|false|null)\b")
+LINE_COMMENT_RE = re.compile(r"(?P<prefix>^|\s)(?P<comment>\#.*|//.*)$")
+BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/")
+RUST_KEYWORD_RE = re.compile(r"\b(?:as|async|await|break|const|continue|crate|dyn|else|enum|extern|false|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|Self|static|struct|super|trait|true|type|unsafe|use|where|while|fn)\b")
+RUST_TYPE_RE = re.compile(r"\b(?:bool|char|str|String|usize|isize|u8|u16|u32|u64|u128|i8|i16|i32|i64|i128|f32|f64|Vec|Option|Result)\b")
+RUST_FUNCTION_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()")
+RUST_MACRO_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*!)")
+PYTHON_KEYWORD_RE = re.compile(r"\b(?:False|None|True|and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b")
+PYTHON_TYPE_RE = re.compile(r"\b(?:str|int|float|bool|list|dict|tuple|set|bytes|object)\b")
+PYTHON_FUNCTION_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()")
+PYTHON_DUNDER_RE = re.compile(r"\b(__[A-Za-z_][A-Za-z0-9_]*__)\b")
+CPP_KEYWORD_RE = re.compile(r"\b(?:alignas|alignof|auto|break|case|class|const|constexpr|continue|delete|do|else|enum|explicit|extern|for|if|inline|namespace|new|noexcept|nullptr|private|protected|public|return|static|struct|switch|template|this|throw|try|typename|using|virtual|while)\b")
+CPP_TYPE_RE = re.compile(r"\b(?:std::string|std::size_t|string|char|short|int|long|float|double|bool|void|size_t)\b")
+CPP_FUNCTION_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)?)\s*(?=\()")
+CPP_STD_SYMBOL_RE = re.compile(r"\b(std::(?:cout|cin|cerr|clog|endl))\b")
+CPP_PREPROCESSOR_RE = re.compile(r"^\s*(#[A-Za-z_][A-Za-z0-9_]*)")
+ANGLE_INCLUDE_RE = re.compile(r"<[A-Za-z0-9_./-]+>")
+PHP_KEYWORD_RE = re.compile(r"\b(?:abstract|and|array|as|break|case|catch|class|clone|const|continue|declare|default|do|echo|else|elseif|empty|extends|final|finally|for|foreach|function|global|if|implements|include|instanceof|interface|namespace|new|null|or|private|protected|public|require|return|static|switch|throw|trait|try|use|var|while|xor)\b")
+PHP_TYPE_RE = re.compile(r"\b(?:array|bool|callable|float|int|iterable|mixed|object|string|void)\b")
+PHP_FUNCTION_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()")
+PHP_VARIABLE_RE = re.compile(r"(\$[A-Za-z_][A-Za-z0-9_]*)")
+PHP_CONSTANT_RE = re.compile(r"\b([A-Z_][A-Z0-9_]*)\b")
+PHP_TAG_RE = re.compile(r"<\?php|\?>")
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->")
+HTML_TAG_RE = re.compile(r"(</?)([A-Za-z][A-Za-z0-9:-]*)([^>]*?)(/?>)")
+HTML_ATTR_RE = re.compile(r"([A-Za-z_:][A-Za-z0-9_:.:-]*)(\s*=\s*)(\"(?:\\.|[^\"])*\"|'(?:\\.|[^'])*')")
+CALLOUTS = {
+    "NOTE": ("🛈", "h2"),
+    "TIP": ("💡", "h4"),
+    "IMPORTANT": ("⬥", "h5"),
+    "WARNING": ("⚠️", "h3"),
+    "CAUTION": ("⛔", "error"),
+}
 
 
 @dataclass(frozen=True)
@@ -45,7 +84,7 @@ class MarkdownRenderer:
         self.config = config
         self.theme = theme
         self.options = RenderOptions(width=max(20, configured_width), table_style=config.table_style)
-        self.md = MarkdownIt("commonmark").enable("table")
+        self.md = MarkdownIt("commonmark").enable("table").enable("strikethrough")
 
     def render(self, markdown: str, *, source: Source | None = None) -> str:
         tokens = self.md.parse(markdown)
@@ -83,9 +122,7 @@ class MarkdownRenderer:
             if token.type == "blockquote_open":
                 end = self._find_matching(tokens, i)
                 inner = self._render_inner(tokens[i + 1 : end], source=source)
-                quote_color = self._color("blockquote")
-                for line in inner.splitlines():
-                    lines.append(f"{quote_color}▌{RESET} {line}")
+                lines.extend(self._render_blockquote(inner))
                 lines.append("")
                 i = end + 1
                 continue
@@ -104,7 +141,7 @@ class MarkdownRenderer:
             i += 1
         return "\n".join(lines).rstrip() + "\n"
 
-    def _render_inner(self, tokens: list[Token], *, source: Source | None) -> str:
+    def _render_inner(self, tokens: list[Token], *, source: Source | None, list_depth: int = 0) -> str:
         old = self.md
         del old
         lines: list[str] = []
@@ -120,6 +157,15 @@ class MarkdownRenderer:
             elif token.type == "fence":
                 lines.extend(self._render_code_block(token.content, token.info))
                 i += 1
+            elif token.type == "blockquote_open":
+                end = self._find_matching(tokens, i)
+                inner = self._render_inner(tokens[i + 1 : end], source=source, list_depth=list_depth)
+                lines.extend(self._render_blockquote(inner))
+                i = end + 1
+            elif token.type in {"bullet_list_open", "ordered_list_open"}:
+                end = self._find_matching(tokens, i)
+                lines.extend(self._render_list(tokens[i:end + 1], ordered=token.type == "ordered_list_open", source=source, depth=list_depth))
+                i = end + 1
             else:
                 i += 1
         return "\n".join(lines)
@@ -135,7 +181,33 @@ class MarkdownRenderer:
             lines.append(self._color("h3") + ("━" * visible_width) + RESET)
             lines.append("")
             return lines
-        return [self._color("h4") + text + RESET, ""]
+        if level == 4:
+            return self._render_fractional_heading(text, metadata="s=2:n=2:d=3", layout_scale=2, color_name="h4")
+        if level == 5:
+            underline = self._underline("h5", style=1)
+            return [self._color("h5") + ESC + "[1m" + underline + text + RESET + ESC + "[4:0m" + ESC + "[59m", ""]
+        return [self._color("h6") + ESC + "[1m" + text + RESET, ""]
+
+    def _render_blockquote(self, inner: str) -> list[str]:
+        inner_lines = inner.splitlines()
+        if not inner_lines:
+            return []
+        match = CALLOUT_RE.match(strip_escape_sequences(inner_lines[0]).strip())
+        if not match:
+            quote_color = self._color("blockquote")
+            return [f"{quote_color}▌{RESET} {line}" for line in inner_lines]
+
+        kind = match.group("kind").upper()
+        title = match.group("title").strip()
+        icon, color_name = CALLOUTS.get(kind, ("◆", "blockquote"))
+        color = self._color(color_name)
+        heading = f"{icon} {kind.title()}"
+        if title:
+            heading += f": {title}"
+        output = [f"{color}█ {ESC}[1m{heading}{RESET}"]
+        for line in inner_lines[1:]:
+            output.append(f"{color}│{RESET} {line}")
+        return output
 
     def _render_large_heading(self, text: str, *, scale: int, color_name: str, blank_after: int) -> list[str]:
         max_chars = max(1, self.options.width // max(1, scale))
@@ -151,19 +223,214 @@ class MarkdownRenderer:
         output.extend([""] * blank_after)
         return output
 
+    def _render_fractional_heading(self, text: str, *, metadata: str, layout_scale: int, color_name: str) -> list[str]:
+        max_chars = max(1, self.options.width // max(1, layout_scale))
+        wrapped = textwrap.wrap(text, width=max_chars, break_long_words=False) or [text]
+        return [self._color(color_name) + f"{ESC}]66;{metadata};{part}{BEL}" + RESET for part in wrapped] + [""]
+
     def _render_code_block(self, content: str, info: str) -> list[str]:
-        del info
         color = self._color("code_block")
         border = self._color("muted")
-        lines = [border + "┌" + ("─" * (self.options.width - 2)) + "┐" + RESET]
-        for raw in content.rstrip("\n").splitlines():
-            text = raw[: max(0, self.options.width - 4)]
-            lines.append(border + "│ " + RESET + color + text.ljust(self.options.width - 4) + RESET + border + " │" + RESET)
-        lines.append(border + "└" + ("─" * (self.options.width - 2)) + "┘" + RESET)
+        raw_lines = content.rstrip("\n").splitlines() or [""]
+        content_width = max(1, max(visible_width(line) for line in raw_lines))
+        box_width = min(self.options.width, max(4, content_width + 4))
+        inner_width = box_width - 4
+        language = self._code_language(info)
+        is_json = self._is_json_block(content, language)
+        lines = [border + "┌" + ("─" * (box_width - 2)) + "┐" + RESET]
+        for raw in raw_lines:
+            text = truncate_rendered(raw, inner_width)
+            line_style = self._code_line_style(text, color)
+            rendered_text = self._highlight_code_line(text, language, is_json)
+            lines.append(border + "│ " + RESET + line_style + align_rendered(rendered_text, inner_width, "left") + RESET + border + " │" + RESET)
+        lines.append(border + "└" + ("─" * (box_width - 2)) + "┘" + RESET)
         lines.append("")
         return lines
 
-    def _render_list(self, tokens: list[Token], *, ordered: bool, source: Source | None) -> list[str]:
+    def _code_language(self, info: str) -> str:
+        return info.strip().split(maxsplit=1)[0].lower() if info.strip() else ""
+
+    def _is_json_block(self, content: str, language: str) -> bool:
+        if language in {"json", "jsonc"}:
+            return True
+        stripped = content.strip()
+        return (stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]"))
+
+    def _highlight_code_line(self, line: str, language: str, is_json: bool) -> str:
+        if is_json:
+            return self._highlight_json_line(line)
+        if language in {"rs", "rust"}:
+            return self._highlight_rust_line(line)
+        if language in {"py", "python", "python3"}:
+            return self._highlight_python_line(line)
+        if language in {"c++", "cpp", "cxx", "cc", "hpp", "h++"}:
+            return self._highlight_cpp_line(line)
+        if language == "php":
+            return self._highlight_php_line(line)
+        if language in {"html", "htm"}:
+            return self._highlight_html_line(line)
+        return self._highlight_code_comments(line)
+
+    def _highlight_json_line(self, line: str) -> str:
+        pieces: list[str] = []
+        pos = 0
+        for match in JSON_STRING_RE.finditer(line):
+            before = line[pos:match.start()]
+            pieces.append(self._highlight_json_scalars(before))
+            token = match.group(0)
+            after = line[match.end():]
+            color_name = "json_key" if re.match(r"\s*:", after) else "json_string"
+            pieces.append(self._color(color_name) + token + RESET)
+            pos = match.end()
+        pieces.append(self._highlight_json_scalars(line[pos:]))
+        return "".join(pieces)
+
+    def _highlight_json_scalars(self, text: str) -> str:
+        text = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, text)
+        return JSON_LITERAL_RE.sub(lambda m: self._color("json_literal") + m.group(0) + RESET, text)
+
+    def _highlight_code_comments(self, line: str) -> str:
+        muted = self._color("muted")
+        line = BLOCK_COMMENT_RE.sub(lambda m: muted + m.group(0) + RESET, line)
+        return LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + muted + m.group("comment") + RESET, line)
+
+    def _highlight_rust_line(self, line: str) -> str:
+        comments: list[str] = []
+
+        def store_comment(match: re.Match[str]) -> str:
+            comments.append(self._color("muted") + match.group(0) + RESET)
+            return f"\0c{len(comments) - 1}\0"
+
+        line = BLOCK_COMMENT_RE.sub(store_comment, line)
+        line = LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + store_comment(re.match(r".*", m.group("comment"))), line)
+
+        strings: list[str] = []
+
+        def store_string(match: re.Match[str]) -> str:
+            strings.append(self._color("json_string") + match.group(0) + RESET)
+            return f"\0s{len(strings) - 1}\0"
+
+        line = JSON_STRING_RE.sub(store_string, line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = RUST_MACRO_RE.sub(lambda m: self._color("code_macro") + m.group(1) + RESET, line)
+        line = RUST_FUNCTION_RE.sub(lambda m: self._color("code_function") + m.group(1) + RESET, line)
+        line = RUST_TYPE_RE.sub(lambda m: self._color("code_type") + m.group(0) + RESET, line)
+        line = RUST_KEYWORD_RE.sub(lambda m: self._color("code_keyword") + m.group(0) + RESET, line)
+        for idx, value in enumerate(strings):
+            line = line.replace(f"\0s{idx}\0", value)
+        for idx, value in enumerate(comments):
+            line = line.replace(f"\0c{idx}\0", value)
+        return line
+
+    def _highlight_python_line(self, line: str) -> str:
+        comments: list[str] = []
+
+        def store_comment(match: re.Match[str]) -> str:
+            comments.append(self._color("muted") + match.group(0) + RESET)
+            return f"\0c{len(comments) - 1}\0"
+
+        line = LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + store_comment(re.match(r".*", m.group("comment"))), line)
+
+        strings: list[str] = []
+
+        def store_string(match: re.Match[str]) -> str:
+            strings.append(self._color("json_string") + match.group(0) + RESET)
+            return f"\0s{len(strings) - 1}\0"
+
+        line = JSON_STRING_RE.sub(store_string, line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = PYTHON_DUNDER_RE.sub(lambda m: self._color("code_macro") + m.group(1) + RESET, line)
+        line = PYTHON_FUNCTION_RE.sub(lambda m: self._color("code_function") + m.group(1) + RESET, line)
+        line = PYTHON_TYPE_RE.sub(lambda m: self._color("code_type") + m.group(0) + RESET, line)
+        line = PYTHON_KEYWORD_RE.sub(lambda m: self._color("code_keyword") + m.group(0) + RESET, line)
+        for idx, value in enumerate(strings):
+            line = line.replace(f"\0s{idx}\0", value)
+        for idx, value in enumerate(comments):
+            line = line.replace(f"\0c{idx}\0", value)
+        return line
+
+    def _highlight_cpp_line(self, line: str) -> str:
+        comments: list[str] = []
+
+        def store_comment(match: re.Match[str]) -> str:
+            comments.append(self._color("muted") + match.group(0) + RESET)
+            return f"\0C{len(comments) - 1}\0"
+
+        line = BLOCK_COMMENT_RE.sub(store_comment, line)
+        line = LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + store_comment(re.match(r".*", m.group("comment"))), line)
+
+        strings: list[str] = []
+
+        def store_string(match: re.Match[str]) -> str:
+            strings.append(self._color("json_string") + match.group(0) + RESET)
+            return f"\0S{len(strings) - 1}\0"
+
+        line = JSON_STRING_RE.sub(store_string, line)
+        line = ANGLE_INCLUDE_RE.sub(lambda m: self._color("json_string") + m.group(0) + RESET, line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = CPP_PREPROCESSOR_RE.sub(lambda m: self._color("code_macro") + m.group(1) + RESET, line)
+        line = CPP_STD_SYMBOL_RE.sub(lambda m: self._color("code_macro") + m.group(1) + RESET, line)
+        line = CPP_FUNCTION_RE.sub(lambda m: self._color("code_function") + m.group(1) + RESET, line)
+        line = CPP_TYPE_RE.sub(lambda m: self._color("code_type") + m.group(0) + RESET, line)
+        line = CPP_KEYWORD_RE.sub(lambda m: self._color("code_keyword") + m.group(0) + RESET, line)
+        for idx, value in enumerate(strings):
+            line = line.replace(f"\0S{idx}\0", value)
+        for idx, value in enumerate(comments):
+            line = line.replace(f"\0C{idx}\0", value)
+        return line
+
+    def _highlight_php_line(self, line: str) -> str:
+        comments: list[str] = []
+
+        def store_comment(match: re.Match[str]) -> str:
+            comments.append(self._color("muted") + match.group(0) + RESET)
+            return f"\0c{len(comments) - 1}\0"
+
+        line = BLOCK_COMMENT_RE.sub(store_comment, line)
+        line = LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + store_comment(re.match(r".*", m.group("comment"))), line)
+
+        strings: list[str] = []
+
+        def store_string(match: re.Match[str]) -> str:
+            strings.append(self._color("json_string") + match.group(0) + RESET)
+            return f"\0s{len(strings) - 1}\0"
+
+        line = JSON_STRING_RE.sub(store_string, line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = PHP_TAG_RE.sub(lambda m: self._color("code_macro") + m.group(0) + RESET, line)
+        line = PHP_VARIABLE_RE.sub(lambda m: self._color("code_macro") + m.group(1) + RESET, line)
+        line = PHP_CONSTANT_RE.sub(lambda m: self._color("code_macro") + m.group(1) + RESET, line)
+        line = PHP_FUNCTION_RE.sub(lambda m: self._color("code_function") + m.group(1) + RESET, line)
+        line = PHP_TYPE_RE.sub(lambda m: self._color("code_type") + m.group(0) + RESET, line)
+        line = PHP_KEYWORD_RE.sub(lambda m: self._color("code_keyword") + m.group(0) + RESET, line)
+        for idx, value in enumerate(strings):
+            line = line.replace(f"\0s{idx}\0", value)
+        for idx, value in enumerate(comments):
+            line = line.replace(f"\0c{idx}\0", value)
+        return line
+
+    def _highlight_html_line(self, line: str) -> str:
+        line = HTML_COMMENT_RE.sub(lambda m: self._color("muted") + m.group(0) + RESET, line)
+
+        def replace_tag(match: re.Match[str]) -> str:
+            open_part, name, attrs, close_part = match.groups()
+            rendered_attrs = HTML_ATTR_RE.sub(
+                lambda attr: self._color("code_type") + attr.group(1) + RESET + attr.group(2) + self._color("json_string") + attr.group(3) + RESET,
+                attrs,
+            )
+            return open_part + self._color("code_function") + name + RESET + rendered_attrs + close_part
+
+        return HTML_TAG_RE.sub(replace_tag, line)
+
+    def _code_line_style(self, text: str, default: str) -> str:
+        stripped = text.lstrip()
+        if stripped.startswith("- ") or stripped.startswith("-\t") or stripped == "-":
+            return self._fg_bg("diff_remove_fg", "diff_remove_bg")
+        if stripped.startswith("+ ") or stripped.startswith("+\t") or stripped == "+":
+            return self._fg_bg("diff_add_fg", "diff_add_bg")
+        return default
+
+    def _render_list(self, tokens: list[Token], *, ordered: bool, source: Source | None, depth: int = 0) -> list[str]:
         lines: list[str] = []
         item_index = 1
         i = 0
@@ -171,10 +438,11 @@ class MarkdownRenderer:
             if tokens[i].type == "list_item_open":
                 end = self._find_matching(tokens, i)
                 marker = f"{item_index}." if ordered else "•"
-                item_text = self._render_inner(tokens[i + 1 : end], source=source).strip()
-                wrapped = wrap_rendered(item_text, max(10, self.options.width - 4))
+                marker_prefix = ("  " * depth) + marker
+                item_text = self._render_inner(tokens[i + 1 : end], source=source, list_depth=depth + 1).strip()
+                wrapped = wrap_rendered(item_text, max(10, self.options.width - visible_width(marker_prefix) - 1))
                 for line_no, line in enumerate(wrapped or [""]):
-                    prefix = marker if line_no == 0 else " " * visible_width(marker)
+                    prefix = marker_prefix if line_no == 0 else " " * visible_width(marker_prefix)
                     lines.append(f"{prefix} {line}")
                 item_index += 1
                 i = end + 1
@@ -267,9 +535,9 @@ class MarkdownRenderer:
         while i < len(tokens):
             token = tokens[i]
             if token.type == "text":
-                output.append(linkify_bare(token.content, self._link_style()))
+                output.append(self._render_text(token.content))
             elif token.type == "softbreak":
-                output.append(" ")
+                output.append("\n")
             elif token.type == "hardbreak":
                 output.append("\n")
             elif token.type == "code_inline":
@@ -281,6 +549,10 @@ class MarkdownRenderer:
             elif token.type == "em_open":
                 end = self._find_inline_close(tokens, i, "em_close")
                 output.append(ESC + "[3m" + self._render_inline(tokens[i + 1 : end], source=source) + RESET)
+                i = end
+            elif token.type == "s_open":
+                end = self._find_inline_close(tokens, i, "s_close")
+                output.append(ESC + "[9m" + self._render_inline(tokens[i + 1 : end], source=source) + ESC + "[29m")
                 i = end
             elif token.type == "link_open":
                 href = token.attrs.get("href", "") if token.attrs else ""
@@ -388,10 +660,25 @@ class MarkdownRenderer:
     def _color(self, name: str) -> str:
         return sgr_fg(self.theme.colors.get(name, "#ffffff"))
 
+    def _fg_bg(self, fg_name: str, bg_name: str) -> str:
+        fg = hex_to_rgb(self.theme.colors.get(fg_name, "#ffffff"))
+        bg = hex_to_rgb(self.theme.colors.get(bg_name, "#000000"))
+        return f"{ESC}[38;2;{fg[0]};{fg[1]};{fg[2]}m{ESC}[48;2;{bg[0]};{bg[1]};{bg[2]}m"
+
+    def _underline(self, name: str, *, style: int) -> str:
+        color = hex_to_rgb(self.theme.colors.get(name, "#ffffff"))
+        return f"{ESC}[58;2;{color[0]};{color[1]};{color[2]}m{ESC}[4:{style}m"
+
     def _link_style(self) -> str:
         color = hex_to_rgb(self.theme.colors.get("link", "#5fafff"))
         underline = hex_to_rgb(self.theme.colors.get("link_underline", "#5fafff"))
         return f"{ESC}[38;2;{color[0]};{color[1]};{color[2]}m{ESC}[58;2;{underline[0]};{underline[1]};{underline[2]}m{ESC}[4:1m"
+
+    def _render_text(self, text: str) -> str:
+        rendered = render_task_markers(text, self._color("h4"), self._color("muted"))
+        rendered = colorize_dates(rendered, self._color("date"))
+        rendered = colorize_large_numbers(rendered, self._color("muted"), self._color("number_major"))
+        return linkify_bare(rendered, self._link_style())
 
 
 def resolve_url(value: str, source: Source | None) -> str:
@@ -426,6 +713,36 @@ def linkify_bare(text: str, style: str) -> str:
         pos = match.end("url")
     pieces.append(text[pos:])
     return "".join(pieces)
+
+
+def render_task_markers(text: str, checked_style: str, unchecked_style: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        prefix = match.group("prefix")
+        checked = match.group("mark").lower() == "x"
+        if prefix.lstrip().startswith(("-", "*")):
+            prefix = prefix.replace("-", "•", 1).replace("*", "•", 1)
+        box = "✅" if checked else "⬜"
+        style = checked_style if checked else unchecked_style
+        return f"{prefix}{style}{box}{RESET} "
+
+    return TASK_RE.sub(replace, text)
+
+
+def colorize_dates(text: str, style: str) -> str:
+    return DATE_RE.sub(lambda m: style + m.group(0) + RESET, text)
+
+
+def colorize_large_numbers(text: str, muted_style: str, major_style: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        value = match.group(0)
+        if len(value) > 6:
+            millions = value[:-6]
+            middle = value[-6:-3]
+            last = value[-3:]
+            return f"{major_style}{ESC}[1m{millions}{RESET}{middle}{muted_style}{last}{RESET}"
+        return value[:-3] + muted_style + value[-3:] + RESET
+
+    return LARGE_NUMBER_RE.sub(replace, text)
 
 
 def sgr_fg(hex_color: str) -> str:
@@ -545,6 +862,24 @@ def align_rendered(value: str, width: int, align: str) -> str:
         left = pad // 2
         return (" " * left) + value + (" " * (pad - left))
     return value + (" " * pad)
+
+
+def truncate_rendered(value: str, width: int) -> str:
+    if visible_width(value) <= width:
+        return value
+    atoms = rendered_atoms(value)
+    output: list[str] = []
+    used = 0
+    for atom, atom_width in atoms:
+        if atom_width == 0:
+            output.append(atom)
+            continue
+        if used + atom_width >= width:
+            output.append("…")
+            break
+        output.append(atom)
+        used += atom_width
+    return "".join(output)
 
 
 def fit_widths(raw_widths: list[int], available: int) -> list[int]:

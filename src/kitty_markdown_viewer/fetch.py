@@ -32,7 +32,7 @@ def fetch_image_to_temp(url: str, *, timeout: float) -> Path:
     response = requests.get(url, timeout=timeout, allow_redirects=True)
     response.raise_for_status()
     suffix = Path(urlparse(response.url).path).suffix or ".img"
-    handle = tempfile.NamedTemporaryFile(prefix="kitty-md-image-", suffix=suffix, delete=False)
+    handle = tempfile.NamedTemporaryFile(prefix="cat-md-image-", suffix=suffix, delete=False)
     with handle:
         handle.write(response.content)
     return Path(handle.name)

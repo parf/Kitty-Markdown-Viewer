@@ -42,8 +42,8 @@ def main() -> int:
         encoding="utf-8",
     )
     DIST.mkdir(exist_ok=True)
-    zipapp.create_archive(BUILD, target=DIST / "kitty-md", interpreter="/usr/bin/env python3")
-    (DIST / "kitty-md").chmod(0o755)
+    zipapp.create_archive(BUILD, target=DIST / "cat-md", interpreter="/usr/bin/env python3")
+    (DIST / "cat-md").chmod(0o755)
     return 0
 
 

@@ -43,7 +43,7 @@ class CliTests(unittest.TestCase):
                 with redirect_stdout(stdout):
                     code = main(["--config", str(root / "config.toml")])
             self.assertEqual(code, 0)
-            self.assertIn("usage: kitty-md", stdout.getvalue())
+            self.assertIn("usage: cat-md", stdout.getvalue())
 
 
 if __name__ == "__main__":
