@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kitty-markdown-viewer"
+version = "0.1.0"
+description = "Kitty-first Markdown renderer for the terminal"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-2.0-or-later" }
+authors = [
+  { name = "Serg Parf", email = "sergey.porfiriev@gmail.com" }
+]
+dependencies = [
+  "markdown-it-py>=3",
+  "requests>=2",
+  "wcwidth>=0.2"
+]
+
+[project.scripts]
+kitty-md = "kitty_markdown_viewer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
