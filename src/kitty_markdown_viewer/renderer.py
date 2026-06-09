@@ -56,12 +56,26 @@ PHP_TAG_RE = re.compile(r"<\?php|\?>")
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->")
 HTML_TAG_RE = re.compile(r"(</?)([A-Za-z][A-Za-z0-9:-]*)([^>]*?)(/?>)")
 HTML_ATTR_RE = re.compile(r"([A-Za-z_:][A-Za-z0-9_:.:-]*)(\s*=\s*)(\"(?:\\.|[^\"])*\"|'(?:\\.|[^'])*')")
+FOOTNOTE_DEF_RE = re.compile(r"^\[\^([^\]]+)\]:\s*(.*)$")
+FOOTNOTE_REF_RE = re.compile(r"\[\^([^\]]+)\]")
+DEFINITION_RE = re.compile(r"^(?P<term>[^\n]+)\n:\s+(?P<definition>.+)$", re.DOTALL)
+FRONT_MATTER_RE = re.compile(r"\A---\n(?P<body>.*?\n)---(?:\n|\Z)", re.DOTALL)
 SHELL_ASSIGN_RE = re.compile(r"(^|\s)([A-Za-z_][A-Za-z0-9_]*=)([^\s]+)")
 SHELL_FLAG_RE = re.compile(r"(?<!\S)(-{1,2}[A-Za-z0-9][A-Za-z0-9_-]*)(?!\S)")
 SHELL_PATH_RE = re.compile(r"(?<!\S)((?:~|/|\./|\.\./)?[A-Za-z0-9_./-]+/[A-Za-z0-9_./-]+)(?!\S)")
 TEXT_PATH_RE = re.compile(r"(?<![\w/.-])((?:~|/|\./|\.\./)[A-Za-z0-9_./-]*[A-Za-z0-9_-](?:\.[A-Za-z0-9_-]+)?)(?![\w/.-])")
 SHELL_COMMAND_RE = re.compile(r"^(\s*)([A-Za-z0-9_./-]+)")
 SHELL_MODULE_RE = re.compile(r"(?<=\s-m\s)([A-Za-z_][A-Za-z0-9_.]*)")
+YAML_KEY_RE = re.compile(r"^(\s*-?\s*)([A-Za-z_][A-Za-z0-9_.-]*)(\s*:\s*)")
+TOML_SECTION_RE = re.compile(r"^(\s*)(\[[^\]]+\])")
+TOML_KEY_RE = re.compile(r"^(\s*)([A-Za-z_][A-Za-z0-9_.-]*)(\s*=)")
+SQL_KEYWORD_RE = re.compile(r"\b(?:SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP|BY|ORDER|LIMIT|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|ALTER|DROP|AND|OR|NOT|NULL|IS|AS|COUNT|SUM|AVG|MIN|MAX)\b", re.IGNORECASE)
+SQL_FUNCTION_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?=\()")
+JS_KEYWORD_RE = re.compile(r"\b(?:async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|null|return|super|switch|this|throw|true|try|typeof|undefined|var|void|while|yield)\b")
+JS_FUNCTION_RE = re.compile(r"\b([A-Za-z_$][A-Za-z0-9_$]*)\s*(?=\()")
+CSS_SELECTOR_RE = re.compile(r"^(\s*)([.#]?[A-Za-z_][A-Za-z0-9_-]*)(?=\s*\{)")
+CSS_PROPERTY_RE = re.compile(r"^(\s*)([A-Za-z-]+)(\s*:\s*)")
+CSS_VALUE_NUMBER_RE = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?:px|rem|em|vh|vw|%|s|ms)?")
 CALLOUTS = {
     "NOTE": ("🛈", "h2"),
     "TIP": ("💡", "h4"),
@@ -91,10 +105,17 @@ class MarkdownRenderer:
         self.theme = theme
         self.options = RenderOptions(width=max(20, configured_width), table_style=config.table_style)
         self.md = MarkdownIt("commonmark").enable("table").enable("strikethrough")
+        self._footnote_numbers: dict[str, int] = {}
+        self._footnote_defs: list[tuple[str, str]] = []
 
     def render(self, markdown: str, *, source: Source | None = None) -> str:
+        markdown, front_matter, footnotes = self._prepare_markdown(markdown)
+        self._footnote_defs = footnotes
+        self._footnote_numbers = {label: index + 1 for index, (label, _) in enumerate(footnotes)}
         tokens = self.md.parse(markdown)
         lines: list[str] = []
+        if front_matter:
+            lines.extend(self._render_code_block(front_matter, "yaml"))
         i = 0
         while i < len(tokens):
             token = tokens[i]
@@ -108,7 +129,7 @@ class MarkdownRenderer:
                 inline = tokens[i + 1] if i + 1 < len(tokens) else None
                 rendered = self._render_inline(inline.children or [], source=source) if inline else ""
                 if rendered:
-                    lines.extend(rendered.splitlines())
+                    lines.extend(self._render_paragraph_lines(rendered))
                     lines.append("")
                 i += 3
                 continue
@@ -118,6 +139,10 @@ class MarkdownRenderer:
                 continue
             if token.type == "code_block":
                 lines.extend(self._render_code_block(token.content, ""))
+                i += 1
+                continue
+            if token.type == "html_block":
+                lines.extend(self._render_code_block(token.content.rstrip("\n"), "html"))
                 i += 1
                 continue
             if token.type == "hr":
@@ -145,7 +170,26 @@ class MarkdownRenderer:
                 i = end + 1
                 continue
             i += 1
+        if self._footnote_defs:
+            lines.extend(self._render_footnotes(source=source))
         return "\n".join(lines).rstrip() + "\n"
+
+    def _prepare_markdown(self, markdown: str) -> tuple[str, str | None, list[tuple[str, str]]]:
+        front_matter = None
+        match = FRONT_MATTER_RE.match(markdown)
+        if match:
+            front_matter = match.group("body").rstrip("\n")
+            markdown = markdown[match.end():]
+
+        body_lines: list[str] = []
+        footnotes: list[tuple[str, str]] = []
+        for line in markdown.splitlines():
+            footnote_match = FOOTNOTE_DEF_RE.match(line)
+            if footnote_match:
+                footnotes.append((footnote_match.group(1), footnote_match.group(2)))
+            else:
+                body_lines.append(line)
+        return "\n".join(body_lines), front_matter, footnotes
 
     def _render_inner(self, tokens: list[Token], *, source: Source | None, list_depth: int = 0) -> str:
         old = self.md
@@ -158,10 +202,13 @@ class MarkdownRenderer:
                 inline = tokens[i + 1] if i + 1 < len(tokens) else None
                 rendered = self._render_inline(inline.children or [], source=source) if inline else ""
                 if rendered:
-                    lines.extend(rendered.splitlines())
+                    lines.extend(self._render_paragraph_lines(rendered))
                 i += 3
             elif token.type == "fence":
                 lines.extend(self._render_code_block(token.content, token.info))
+                i += 1
+            elif token.type == "html_block":
+                lines.extend(self._render_code_block(token.content.rstrip("\n"), "html"))
                 i += 1
             elif token.type == "blockquote_open":
                 end = self._find_matching(tokens, i)
@@ -175,6 +222,18 @@ class MarkdownRenderer:
             else:
                 i += 1
         return "\n".join(lines)
+
+    def _render_paragraph_lines(self, rendered: str) -> list[str]:
+        definition = DEFINITION_RE.match(strip_escape_sequences(rendered))
+        if not definition:
+            return rendered.splitlines()
+        raw_lines = rendered.splitlines()
+        term = raw_lines[0]
+        definition_text = "\n".join(line[2:] if line.startswith(": ") else line for line in raw_lines[1:])
+        return [
+            self._color("h5") + ESC + "[1m" + term + RESET,
+            self._color("blockquote") + "→" + RESET + " " + definition_text,
+        ]
 
     def _render_heading(self, level: int, text: str) -> list[str]:
         if level == 1:
@@ -214,6 +273,16 @@ class MarkdownRenderer:
         for line in inner_lines[1:]:
             output.append(f"{color}│{RESET} {line}")
         return output
+
+    def _render_footnotes(self, *, source: Source | None) -> list[str]:
+        lines = [self._color("muted") + ("─" * min(self.options.width, 24)) + RESET]
+        for label, body in self._footnote_defs:
+            number = self._footnote_numbers.get(label, 0)
+            marker = self._color("h5") + superscript_number(number) + RESET
+            rendered = self._render_text(body)
+            lines.append(f"{marker} {rendered}")
+        lines.append("")
+        return lines
 
     def _render_large_heading(self, text: str, *, scale: int, color_name: str, blank_after: int) -> list[str]:
         max_chars = max(1, self.options.width // max(1, scale))
@@ -277,6 +346,16 @@ class MarkdownRenderer:
             return self._highlight_html_line(line)
         if language in {"bash", "sh", "shell", "zsh"}:
             return self._highlight_shell_line(line)
+        if language in {"yaml", "yml"}:
+            return self._highlight_yaml_line(line)
+        if language == "toml":
+            return self._highlight_toml_line(line)
+        if language == "sql":
+            return self._highlight_sql_line(line)
+        if language in {"js", "javascript", "ts", "typescript"}:
+            return self._highlight_js_line(line)
+        if language == "css":
+            return self._highlight_css_line(line)
         return self._highlight_code_comments(line)
 
     def _highlight_json_line(self, line: str) -> str:
@@ -450,6 +529,62 @@ class MarkdownRenderer:
             line = line.replace(f"\0s{idx}\0", value)
         return line
 
+    def _highlight_yaml_line(self, line: str) -> str:
+        if line.lstrip().startswith("#"):
+            return self._highlight_code_comments(line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = JSON_LITERAL_RE.sub(lambda m: self._color("json_literal") + m.group(0) + RESET, line)
+        line = JSON_STRING_RE.sub(lambda m: self._color("json_string") + m.group(0) + RESET, line)
+        return YAML_KEY_RE.sub(lambda m: m.group(1) + self._color("json_key") + m.group(2) + RESET + m.group(3), line)
+
+    def _highlight_toml_line(self, line: str) -> str:
+        if line.lstrip().startswith("#"):
+            return self._highlight_code_comments(line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = JSON_LITERAL_RE.sub(lambda m: self._color("json_literal") + m.group(0) + RESET, line)
+        line = JSON_STRING_RE.sub(lambda m: self._color("json_string") + m.group(0) + RESET, line)
+        line = TOML_SECTION_RE.sub(lambda m: m.group(1) + self._color("code_macro") + m.group(2) + RESET, line)
+        return TOML_KEY_RE.sub(lambda m: m.group(1) + self._color("json_key") + m.group(2) + RESET + m.group(3), line)
+
+    def _highlight_sql_line(self, line: str) -> str:
+        line = self._highlight_code_comments(line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = SQL_FUNCTION_RE.sub(lambda m: self._color("code_function") + m.group(1) + RESET, line)
+        return SQL_KEYWORD_RE.sub(lambda m: self._color("code_keyword") + m.group(0).upper() + RESET, line)
+
+    def _highlight_js_line(self, line: str) -> str:
+        comments: list[str] = []
+
+        def store_comment(match: re.Match[str]) -> str:
+            comments.append(self._color("muted") + match.group(0) + RESET)
+            return f"\0c{len(comments) - 1}\0"
+
+        line = BLOCK_COMMENT_RE.sub(store_comment, line)
+        line = LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + store_comment(re.match(r".*", m.group("comment"))), line)
+
+        strings: list[str] = []
+
+        def store_string(match: re.Match[str]) -> str:
+            strings.append(self._color("json_string") + match.group(0) + RESET)
+            return f"\0s{len(strings) - 1}\0"
+
+        line = JSON_STRING_RE.sub(store_string, line)
+        line = JSON_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = JS_FUNCTION_RE.sub(lambda m: self._color("code_function") + m.group(1) + RESET, line)
+        line = JS_KEYWORD_RE.sub(lambda m: self._color("code_keyword") + m.group(0) + RESET, line)
+        for idx, value in enumerate(strings):
+            line = line.replace(f"\0s{idx}\0", value)
+        for idx, value in enumerate(comments):
+            line = line.replace(f"\0c{idx}\0", value)
+        return line
+
+    def _highlight_css_line(self, line: str) -> str:
+        line = BLOCK_COMMENT_RE.sub(lambda m: self._color("muted") + m.group(0) + RESET, line)
+        line = CSS_VALUE_NUMBER_RE.sub(lambda m: self._color("json_number") + m.group(0) + RESET, line)
+        line = CSS_SELECTOR_RE.sub(lambda m: m.group(1) + self._color("code_function") + m.group(2) + RESET, line)
+        line = CSS_PROPERTY_RE.sub(lambda m: m.group(1) + self._color("json_key") + m.group(2) + RESET + m.group(3), line)
+        return JSON_STRING_RE.sub(lambda m: self._color("json_string") + m.group(0) + RESET, line)
+
     def _code_line_style(self, text: str, default: str) -> str:
         stripped = text.lstrip()
         if stripped.startswith("- ") or stripped.startswith("-\t") or stripped == "-":
@@ -460,7 +595,7 @@ class MarkdownRenderer:
 
     def _render_list(self, tokens: list[Token], *, ordered: bool, source: Source | None, depth: int = 0) -> list[str]:
         lines: list[str] = []
-        item_index = 1
+        item_index = int((tokens[0].attrs or {}).get("start", 1)) if ordered and tokens else 1
         i = 0
         while i < len(tokens):
             if tokens[i].type == "list_item_open":
@@ -701,6 +836,7 @@ class MarkdownRenderer:
         return f"{ESC}[38;2;{color[0]};{color[1]};{color[2]}m{ESC}[58;2;{underline[0]};{underline[1]};{underline[2]}m{ESC}[4:1m"
 
     def _render_text(self, text: str) -> str:
+        text = self._render_footnote_refs(text)
         return render_text_features(
             text,
             checked_style=self._color("h4"),
@@ -711,6 +847,16 @@ class MarkdownRenderer:
             path_style=self._color("code_type"),
             link_style=self._link_style(),
         )
+
+    def _render_footnote_refs(self, text: str) -> str:
+        def replace(match: re.Match[str]) -> str:
+            label = match.group(1)
+            number = self._footnote_numbers.get(label)
+            if number is None:
+                return match.group(0)
+            return self._color("h5") + superscript_number(number) + RESET
+
+        return FOOTNOTE_REF_RE.sub(replace, text)
 
 
 def resolve_url(value: str, source: Source | None) -> str:
@@ -823,6 +969,11 @@ def colorize_large_numbers(text: str, muted_style: str, major_style: str) -> str
 
 def colorize_paths(text: str, style: str) -> str:
     return TEXT_PATH_RE.sub(lambda m: style + m.group(1) + RESET, text)
+
+
+def superscript_number(value: int) -> str:
+    table = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+    return str(value).translate(table)
 
 
 def sgr_fg(hex_color: str) -> str:

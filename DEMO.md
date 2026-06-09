@@ -1,3 +1,9 @@
+---
+title: Cat Markdown Demo
+owner: Morgan
+updated: 2026-06-08
+---
+
 # Markdown Feature Demo
 
 A polished sample document for testing terminal Markdown rendering in `cat-md`.
@@ -11,9 +17,10 @@ A polished sample document for testing terminal Markdown rendering in `cat-md`.
 2. [Headings and Text](#headings-and-text)
 3. [Lists and Task Lists](#lists-and-task-lists)
 4. [Links](#links)
-5. [Blockquotes and Callouts](#blockquotes-and-callouts)
-6. [Code and Syntax Highlighting](#code-and-syntax-highlighting)
-7. [Tables](#tables)
+5. [Definitions and Footnotes](#definitions-and-footnotes)
+6. [Blockquotes and Callouts](#blockquotes-and-callouts)
+7. [Code and Syntax Highlighting](#code-and-syntax-highlighting)
+8. [Tables](#tables)
 
 ---
 
@@ -35,7 +42,7 @@ A polished sample document for testing terminal Markdown rendering in `cat-md`.
 
 This paragraph contains **bold**, *italic*, ***bold italic***, ~~strikethrough~~, and `inline code`.
 
-You can also combine styles like **bold with `code` inside** and links like [inline links](https://github.com/parf/Kitty-Markdown-Viewer).
+You can also combine styles like **bold with `code` inside**, links like [inline links](https://github.com/parf/Kitty-Markdown-Viewer), and footnotes[^renderer-note].
 
 ---
 
@@ -75,6 +82,18 @@ Repository: <https://github.com/parf/Kitty-Markdown-Viewer>
 Email: <sergey.porfiriev@gmail.com>
 
 Reference style: [Renderer roadmap][roadmap]
+
+---
+
+## Definitions and Footnotes
+
+Kitty protocol
+: Terminal escape protocols that let `cat-md` render large headings, clickable links, and inline images.
+
+Renderer polish
+: The small visual details that make CLI output feel closer to a web document.
+
+Footnotes render at the bottom while keeping compact references inline[^coffee].
 
 ---
 
@@ -157,6 +176,42 @@ echo summonCacheDragon("Riley", 1204) . PHP_EOL;
 </section>
 ```
 
+<aside class="terminal-note">
+  Raw HTML blocks render as highlighted markup.
+</aside>
+
+```yaml
+title: "Cat Markdown Demo"
+features:
+  - kitty-headings
+  - osc8-links
+  - inline-images
+updated: 2026-06-08
+```
+
+```toml
+[render]
+schema = "dark"
+width = 100
+table_style = "unicode"
+```
+
+```sql
+select count(*) from render_events where feature = "tables" and total > 1204
+```
+
+```js
+const total = parseInt("1204", 10);
+return total + 42;
+```
+
+```css
+.summary {
+  color: #fff;
+  margin: 12px;
+}
+```
+
 ```json
 {
   "name": "cat-md-demo",
@@ -189,3 +244,5 @@ echo summonCacheDragon("Riley", 1204) . PHP_EOL;
 | link lasers  |   clickable   |     431204928 |
 
 [roadmap]: https://github.com/parf/Kitty-Markdown-Viewer "Renderer roadmap"
+[^renderer-note]: Footnotes use compact superscript markers and render in a small section at the end.
+[^coffee]: Coffee is not required, but the renderer behaves better when its author has some.

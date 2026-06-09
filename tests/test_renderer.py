@@ -75,6 +75,34 @@ class RendererTests(unittest.TestCase):
         self.assertIn("\x1b]8;;https://x.test\x1b\\", output)
         self.assertIn("one two", output)
 
+    def test_ordered_list_preserves_start_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp)).render("4. hydrate renderer\n5. ship demo\n")
+        self.assertIn("4. hydrate renderer", output)
+        self.assertIn("5. ship demo", output)
+
+    def test_definition_list_renders_term_and_definition(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp)).render("Renderer\n: terminal-first Markdown display\n")
+        self.assertIn("Renderer", output)
+        self.assertIn("→", output)
+        self.assertIn("terminal-first Markdown display", output)
+
+    def test_footnotes_render_refs_and_section(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp)).render("Useful detail[^note].\n\n[^note]: rendered at the bottom\n")
+        self.assertIn("Useful detail", output)
+        self.assertIn("¹", output)
+        self.assertIn("rendered at the bottom", output)
+
+    def test_front_matter_renders_as_metadata_block(self) -> None:
+        markdown = "---\ntitle: Demo\ndate: 2026-06-08\n---\n\n# Hello\n"
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp)).render(markdown)
+        self.assertIn("title", output)
+        self.assertIn("Demo", output)
+        self.assertIn("\x1b]66;s=4;Hello\x07", output)
+
     def test_code_block_box_uses_needed_width(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = make_renderer(Path(temp), width=100).render("```\n# Build and run\ncargo build\ncargo run -- DEMO.md\n```")
@@ -160,6 +188,52 @@ class RendererTests(unittest.TestCase):
         self.assertIn('\x1b[38;2;215;175;255mclass', output)
         self.assertIn('\x1b[38;2;255;215;95m"summary"', output)
         self.assertIn('\x1b[38;2;95;215;255mh2', output)
+
+    def test_raw_html_block_renders_highlighted(self) -> None:
+        markdown = '<section class="summary">\n  <h2>Renderer demo</h2>\n</section>\n'
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp), width=100).render(markdown)
+        self.assertIn("┌", output)
+        self.assertIn('\x1b[38;2;95;215;255msection', output)
+
+    def test_code_block_highlights_yaml_toml_sql_js_css(self) -> None:
+        markdown = """```yaml
+title: "Demo"
+count: 1204
+enabled: true
+```
+
+```toml
+[render]
+schema = "dark"
+width = 80
+```
+
+```sql
+select count(*) from events where total > 1204
+```
+
+```js
+const total = parseInt("1204", 10);
+return total;
+```
+
+```css
+.summary {
+  color: #fff;
+  margin: 12px;
+}
+```
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp), width=100).render(markdown)
+        self.assertIn('\x1b[38;2;95;215;255mtitle', output)
+        self.assertIn('\x1b[38;2;135;255;175mtrue', output)
+        self.assertIn('\x1b[38;2;135;255;175m[render]', output)
+        self.assertIn('\x1b[38;2;255;95;135mSELECT', output)
+        self.assertIn('\x1b[38;2;95;215;255mparseInt', output)
+        self.assertIn('\x1b[38;2;95;215;255m.summary', output)
+        self.assertIn('\x1b[38;2;95;215;255mcolor', output)
 
     def test_code_block_highlights_shell_commands(self) -> None:
         markdown = "```bash\nPYTHONPATH=src python3 -m unittest discover -s tests -v\npython3 scripts/build_zipapp.py\n/home/parf/bin/cat-md --help\n./dist/cat-md --help\n```"
