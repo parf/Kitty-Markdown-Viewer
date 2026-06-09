@@ -9,6 +9,8 @@
 cat-md README.md
 ```
 
+![cat-md rendering this README in a terminal](assets/examples/cat-md-readme.png)
+
 ---
 
 ## ✨ Why cat-md?
@@ -80,6 +82,17 @@ alignment (`:--`, `:-:`, `--:`) and automatic cell wrapping to fit your width.
 | `> [!IMPORTANT]` | ⬥ Important |
 | `> [!WARNING]` | ⚠️ Warning |
 | `> [!CAUTION]` | ⛔ Caution |
+
+- Extra notice callouts are supported too. These are **not GitHub Markdown**:
+
+| Markdown | Renders as |
+| :-- | :-- |
+| `> [!INFO]` | 🔷 Info |
+| `> [!DANGER]` | ⚡ Danger |
+| `> [!SUCCESS]` | ✅ Success |
+| `> [!ERROR]` | 🛑 Error |
+| `> [!QUESTION]` | ❓ Question |
+| `> [!EXAMPLE]` | 🧪 Example |
 
 ### 🪄 Smart text touches
 - 📅 **Dates** (`2026-06-08`) are highlighted

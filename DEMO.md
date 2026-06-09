@@ -109,6 +109,12 @@ Footnotes render at the bottom while keeping compact references inline[^coffee].
 > [!WARNING]
 > Do not deploy irreversible data migrations without a rollback plan.
 
+> [!SUCCESS]
+> The release checklist now renders with extra cat-md notices.
+
+> [!QUESTION]
+> Should we add pager support next?
+
 Nested quote:
 
 > Terminal wisdom

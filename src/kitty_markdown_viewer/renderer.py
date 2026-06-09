@@ -82,6 +82,12 @@ CALLOUTS = {
     "IMPORTANT": ("⬥", "h5"),
     "WARNING": ("⚠️", "h3"),
     "CAUTION": ("⛔", "error"),
+    "INFO": ("🔷", "callout_info"),
+    "DANGER": ("⚡", "callout_danger"),
+    "SUCCESS": ("✅", "callout_success"),
+    "ERROR": ("🛑", "callout_error"),
+    "QUESTION": ("❓", "callout_question"),
+    "EXAMPLE": ("🧪", "callout_example"),
 }
 
 
@@ -356,7 +362,7 @@ class MarkdownRenderer:
             return self._highlight_js_line(line)
         if language == "css":
             return self._highlight_css_line(line)
-        return self._highlight_code_comments(line)
+        return self._highlight_generic_line(line)
 
     def _highlight_json_line(self, line: str) -> str:
         pieces: list[str] = []
@@ -380,6 +386,12 @@ class MarkdownRenderer:
         muted = self._color("muted")
         line = BLOCK_COMMENT_RE.sub(lambda m: muted + m.group(0) + RESET, line)
         return LINE_COMMENT_RE.sub(lambda m: m.group("prefix") + muted + m.group("comment") + RESET, line)
+
+    def _highlight_generic_line(self, line: str) -> str:
+        commented = self._highlight_code_comments(line)
+        if commented != line:
+            return commented
+        return colorize_paths(line, self._color("code_type"))
 
     def _highlight_rust_line(self, line: str) -> str:
         comments: list[str] = []

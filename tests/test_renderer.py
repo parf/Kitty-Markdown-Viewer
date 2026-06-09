@@ -58,6 +58,13 @@ class RendererTests(unittest.TestCase):
         self.assertIn("\x1b[38;2;215;175;255m~/.config/cat-md/config.toml\x1b[0m", output)
         self.assertIn("\x1b[38;2;215;175;255m/home/parf/bin/cat-md\x1b[0m", output)
 
+    def test_paths_are_colored_in_generic_code_blocks(self) -> None:
+        markdown = "```\n~/.config/cat-md/themes/dark.toml\n/home/parf/bin/cat-md\n```"
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp), width=100).render(markdown)
+        self.assertIn("\x1b[38;2;215;175;255m~/.config/cat-md/themes/dark.toml\x1b[0m", output)
+        self.assertIn("\x1b[38;2;215;175;255m/home/parf/bin/cat-md\x1b[0m", output)
+
     def test_large_numbers_style_groups(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = make_renderer(Path(temp)).render("Values: 108 1204 48217 309884 1204928")
@@ -291,6 +298,23 @@ return total;
         self.assertIn("Warning", output)
         self.assertNotIn("[!NOTE]", output)
         self.assertNotIn("[!WARNING]", output)
+
+    def test_extra_notice_callouts_render_with_fancy_unicode_labels(self) -> None:
+        markdown = "\n\n".join(
+            f"> [!{kind}]\n> Notice body"
+            for kind in ["INFO", "DANGER", "SUCCESS", "ERROR", "QUESTION", "EXAMPLE"]
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp)).render(markdown)
+        for label in ["Info", "Danger", "Success", "Error", "Question", "Example"]:
+            self.assertIn(label, output)
+        for icon in ["🔷", "⚡", "✅", "🛑", "❓", "🧪"]:
+            self.assertIn(icon, output)
+        self.assertIn("\x1b[38;2;255;0;95m", output)
+        self.assertIn("\x1b[38;2;95;255;135m", output)
+        self.assertIn("\x1b[38;2;255;135;255m", output)
+        for marker in ["[!INFO]", "[!DANGER]", "[!SUCCESS]", "[!ERROR]", "[!QUESTION]", "[!EXAMPLE]"]:
+            self.assertNotIn(marker, output)
 
     def test_nested_blockquote_preserves_nested_level(self) -> None:
         markdown = "> Outer quote\n>\n> > Nested quote\n"
