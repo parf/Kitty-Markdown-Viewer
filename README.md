@@ -101,7 +101,8 @@ alignment (`:--`, `:-:`, `--:`) and automatic cell wrapping to fit your width.
 - ✍️ **Footnotes**, **definition lists**, and YAML **front matter** are all handled
 - **Bold**, *italic*, ~~strikethrough~~, and `inline code` — as expected
 
-> 🧪 **See it all in action:** `cat-md DEMO.md`
+> 🧪 **See it all in action:** `DEMO.md` collects every supported feature in one place.
+> Run it with `cat-md DEMO.md`.
 
 ---
 
