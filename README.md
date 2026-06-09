@@ -146,8 +146,9 @@ cat-md --init-config
 
 ## 📦 Install
 
-Requires **Python 3.11+** and the **kitty** terminal for the full experience
-(large text, images, and clickable links).
+Requires **Python 3.11+** and the **kitty** terminal. `cat-md` exits with
+`kitty terminal required` outside kitty because its rendering depends on kitty
+protocols for large text, images, and clickable links.
 
 ```bash
 pip install .
@@ -162,6 +163,4 @@ python3 scripts/build_zipapp.py
 
 ---
 
-Made for the terminal that purrs. 🐾
-
-*Renders best in [kitty](https://sw.kovidgoyal.net/kitty/) — other terminals show a graceful subset.*
+Made for [kitty](https://sw.kovidgoyal.net/kitty/). 🐾

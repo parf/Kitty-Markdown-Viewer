@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import replace
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -42,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"cat-md: {exc}", file=sys.stderr)
             return 1
         return 0
+    if not is_kitty_terminal():
+        print("cat-md: kitty terminal required", file=sys.stderr)
+        return 1
 
     config = load_config(args.config)
     if args.table_style:
@@ -98,6 +102,10 @@ def write_output(output: str, config) -> int:
 def is_stdout_tty() -> bool:
     isatty = getattr(sys.stdout, "isatty", None)
     return bool(isatty and isatty())
+
+
+def is_kitty_terminal() -> bool:
+    return bool(os.environ.get("KITTY_WINDOW_ID") or os.environ.get("KITTY_PID") or os.environ.get("TERM") == "xterm-kitty")
 
 
 if __name__ == "__main__":
