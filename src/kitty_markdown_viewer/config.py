@@ -22,6 +22,14 @@ table_style = "unicode"
 # Emit kitty/color/control sequences even when stdout is redirected.
 always_emit_escape_sequences = true
 
+# Page long interactive output by default. Pagination is used only when stdout
+# is a terminal; pipes and redirects still receive normal stdout.
+pager = true
+
+# Pager command. "less -r" preserves kitty OSC/text/image escape sequences
+# better than pagers that only understand basic ANSI color.
+pager_command = "less -r"
+
 [headings]
 # Kitty OSC 66 text scales. H1 is intentionally very large.
 h1_scale = 4
@@ -156,6 +164,8 @@ class Config:
     images_enabled: bool
     image_max_width: int
     image_max_height: int
+    pager: bool
+    pager_command: str
     fetch_timeout_seconds: float
     dark_theme_path: Path
     light_theme_path: Path
@@ -231,6 +241,8 @@ def load_config(config_path: Path | None = None) -> Config:
         images_enabled=bool(images.get("enabled", True)),
         image_max_width=int(images.get("max_width", 0)),
         image_max_height=int(images.get("max_height", 0)),
+        pager=bool(render.get("pager", True)),
+        pager_command=str(render.get("pager_command", "less -r")),
         fetch_timeout_seconds=float(fetch.get("timeout_seconds", 10)),
         dark_theme_path=_path_from_config(cfg_dir, str(themes.get("dark", "themes/dark.toml"))),
         light_theme_path=_path_from_config(cfg_dir, str(themes.get("light", "themes/light.toml"))),

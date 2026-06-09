@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 from pathlib import Path
+import shlex
+import subprocess
 import sys
 
 from .config import ensure_defaults, load_config
@@ -19,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, help="Config file path.")
     parser.add_argument("--init-config", action="store_true", help="Create default config/theme files and exit; refuses to overwrite.")
     parser.add_argument("--table-style", choices=["unicode", "plain"], help="Table style.")
+    pager = parser.add_mutually_exclusive_group()
+    pager.add_argument("--pager", action="store_true", dest="pager", help="Page output when stdout is a terminal.")
+    pager.add_argument("--no-pager", action="store_false", dest="pager", help="Write directly to stdout.")
+    parser.add_argument("--pager-command", help='Pager command. Default: "less -r".')
+    parser.set_defaults(pager=None)
     return parser
 
 
@@ -39,16 +46,21 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     if args.table_style:
         config = replace(config, table_style=args.table_style)
+    if args.pager is not None:
+        config = replace(config, pager=args.pager)
+    if args.pager_command:
+        config = replace(config, pager_command=args.pager_command)
     theme = resolve_theme(config, args.schema)
     renderer = MarkdownRenderer(config, theme, width=args.width)
 
     try:
+        chunks: list[str] = []
         for text, source in read_inputs(args.inputs, config.fetch_timeout_seconds):
-            sys.stdout.write(renderer.render(text, source=source))
+            chunks.append(renderer.render(text, source=source))
+        return write_output("".join(chunks), config)
     except Exception as exc:
         print(f"cat-md: {exc}", file=sys.stderr)
         return 1
-    return 0
 
 
 def read_inputs(inputs: list[str], timeout: float):
@@ -64,6 +76,28 @@ def read_inputs(inputs: list[str], timeout: float):
         else:
             path = Path(item).expanduser()
             yield path.read_text(encoding="utf-8"), Source(path=path)
+
+
+def write_output(output: str, config) -> int:
+    if not config.pager or not is_stdout_tty():
+        sys.stdout.write(output)
+        return 0
+
+    command = shlex.split(config.pager_command)
+    if not command:
+        sys.stdout.write(output)
+        return 0
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, text=True)
+        process.communicate(output)
+    except (BrokenPipeError, OSError):
+        sys.stdout.write(output)
+    return 0
+
+
+def is_stdout_tty() -> bool:
+    isatty = getattr(sys.stdout, "isatty", None)
+    return bool(isatty and isatty())
 
 
 if __name__ == "__main__":

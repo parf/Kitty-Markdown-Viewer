@@ -112,8 +112,14 @@ alignment (`:--`, `:-:`, `--:`) and automatic cell wrapping to fit your width.
 | `--theme dark\|light\|detect` | Force a theme (default: detect from terminal background) |
 | `--width N` | Render to a fixed column width |
 | `--table-style unicode\|plain` | Boxed tables (default) or minimal plain tables |
+| `--pager` / `--no-pager` | Enable or disable interactive pagination |
+| `--pager-command CMD` | Override the pager command (default: `less -r`) |
 | `--config PATH` | Use an alternate config file |
 | `--init-config` | Create default config & theme files (won't overwrite) |
+
+Pagination is on by default only when stdout is a terminal. Pipes and redirects
+still receive normal stdout. The default pager is `less -r` because it preserves
+kitty OSC sequences better than pagers that only support basic ANSI color.
 
 ---
 

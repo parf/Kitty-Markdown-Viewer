@@ -17,6 +17,8 @@ class ConfigTests(unittest.TestCase):
             self.assertTrue((root / "themes" / "dark.toml").exists())
             self.assertTrue((root / "themes" / "light.toml").exists())
             self.assertEqual(config.schema, "detect")
+            self.assertTrue(config.pager)
+            self.assertEqual(config.pager_command, "less -r")
 
     def test_init_config_refuses_to_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -28,4 +30,3 @@ class ConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
