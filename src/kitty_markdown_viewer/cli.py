@@ -19,8 +19,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, help="Config file path.")
     parser.add_argument("--init-config", action="store_true", help="Create default config/theme files and exit; refuses to overwrite.")
     parser.add_argument("--table-style", choices=["unicode", "plain"], help="Table style.")
-    parser.add_argument("--image-width", type=int, help="Maximum image width in terminal cells.")
-    parser.add_argument("--image-height", type=int, help="Maximum image height in terminal cells.")
     return parser
 
 
@@ -41,10 +39,6 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     if args.table_style:
         config = replace(config, table_style=args.table_style)
-    if args.image_width is not None:
-        config = replace(config, image_max_width=args.image_width)
-    if args.image_height is not None:
-        config = replace(config, image_max_height=args.image_height)
     theme = resolve_theme(config, args.schema)
     renderer = MarkdownRenderer(config, theme, width=args.width)
 

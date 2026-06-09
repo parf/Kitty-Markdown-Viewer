@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🐱 cat-md
 
 ### Markdown that looks like the web — right inside your terminal
@@ -10,8 +8,6 @@
 ```bash
 cat-md README.md
 ```
-
-</div>
 
 ---
 
@@ -103,7 +99,6 @@ alignment (`:--`, `:-:`, `--:`) and automatic cell wrapping to fit your width.
 | `--theme dark\|light\|detect` | Force a theme (default: detect from terminal background) |
 | `--width N` | Render to a fixed column width |
 | `--table-style unicode\|plain` | Boxed tables (default) or minimal plain tables |
-| `--image-width N` / `--image-height N` | Cap inline image size |
 | `--config PATH` | Use an alternate config file |
 | `--init-config` | Create default config & theme files (won't overwrite) |
 
@@ -147,10 +142,6 @@ python3 scripts/build_zipapp.py
 
 ---
 
-<div align="center">
-
 Made for the terminal that purrs. 🐾
 
 *Renders best in [kitty](https://sw.kovidgoyal.net/kitty/) — other terminals show a graceful subset.*
-
-</div>
