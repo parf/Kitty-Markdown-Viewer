@@ -3,16 +3,23 @@
 A polished sample document for testing terminal Markdown rendering in `cat-md`.
 
 > [!NOTE]
-> This demo intentionally focuses on features that currently render cleanly in the terminal.
+> This sample document covers typical Markdown features used in project notes and technical docs.
 
 ## Table of Contents
 
-1. [Headings and Text](#headings-and-text)
-2. [Lists and Task Lists](#lists-and-task-lists)
-3. [Links](#links)
-4. [Blockquotes and Callouts](#blockquotes-and-callouts)
-5. [Code and Syntax Highlighting](#code-and-syntax-highlighting)
-6. [Tables](#tables)
+1. [Images](#images)
+2. [Headings and Text](#headings-and-text)
+3. [Lists and Task Lists](#lists-and-task-lists)
+4. [Links](#links)
+5. [Blockquotes and Callouts](#blockquotes-and-callouts)
+6. [Code and Syntax Highlighting](#code-and-syntax-highlighting)
+7. [Tables](#tables)
+
+---
+
+## Images
+
+![Bender pointing on the moon](assets/examples/bender-moon.png)
 
 ---
 
@@ -36,26 +43,26 @@ You can also combine styles like **bold with `code` inside** and links like [inl
 
 ### Unordered List
 
-- Project kickoff complete
-- Documentation drafted
+- Terminal confetti budget approved
+- Documentation drafted with only minor wizardry
 - Review items:
-  - Confirm release date
-  - Confirm owner for QA
-  - Confirm rollout checklist
+  - Confirm launch date with the calendar spirits
+  - Confirm owner for QA victory dance
+  - Confirm rollback checklist is not decorative
 
 ### Ordered List
 
-1. Define scope
-2. Build prototype
-3. Run validation
-4. Publish notes
+1. Name the feature before it names itself
+2. Build a prototype that looks accidentally finished
+3. Run validation until the edge cases confess
+4. Publish notes with exactly one dramatic flourish
 
 ### Task List
 
-- [x] Create initial brief
-- [x] Add code samples
-- [ ] Final legal review
-- [ ] Publish release blog
+- [x] Teach the terminal to purr in OSC 8
+- [x] Add suspiciously polished code samples
+- [ ] Convince legal that emoji checkboxes are binding
+- [ ] Ship before the coffee gets cold
 
 ---
 
@@ -85,9 +92,9 @@ Reference style: [Renderer roadmap][roadmap]
 
 Nested quote:
 
-> Quarter goals
-> > Stability first
-> > Improve developer feedback loops
+> Terminal wisdom
+> > Pretty output counts as morale
+> > Fast feedback prevents heroic debugging
 
 ---
 
@@ -102,45 +109,45 @@ cat DEMO.md | cat-md
 ```
 
 ```python
-def summarize(name: str, tasks_done: int) -> str:
-    return f"{name} completed {tasks_done} tasks"
+def crackSHA3(payload: str, rounds: int) -> str:
+    return f"{payload} survived {rounds} theatrical hashes"
 
 
 if __name__ == "__main__":
-    print(summarize("Morgan", 7))
+    print(crackSHA3("Morgan", 7))
 ```
 
 ```cpp
 #include <iostream>
 #include <string>
 
-std::string summarize(const std::string& name, int tasks_done) {
-    return name + " completed " + std::to_string(tasks_done) + " tasks";
+std::string forgeQuantumBadge(const std::string& name, int entropy_bits) {
+    return name + " unlocked " + std::to_string(entropy_bits) + " entropy bits";
 }
 
 int main() {
-    std::cout << summarize("Taylor", 42) << std::endl;
+    std::cout << forgeQuantumBadge("Taylor", 42) << std::endl;
 }
 ```
 
 ```rust
-fn summarize(name: &str, tasks_done: usize) -> String {
-    format!("{name} completed {tasks_done} tasks")
+fn defuseYamlKraken(name: &str, anchors: usize) -> String {
+    format!("{name} defused {anchors} suspicious anchors")
 }
 
 fn main() {
-    println!("{}", summarize("Jordan", 108));
+    println!("{}", defuseYamlKraken("Jordan", 108));
 }
 ```
 
 ```php
 <?php
 
-function summarize(string $name, int $tasksDone): string {
-    return "{$name} completed {$tasksDone} tasks";
+function summonCacheDragon(string $name, int $cacheHits): string {
+    return "{$name} summoned {$cacheHits} cache sparks";
 }
 
-echo summarize("Riley", 1204) . PHP_EOL;
+echo summonCacheDragon("Riley", 1204) . PHP_EOL;
 ```
 
 ```html
@@ -163,24 +170,22 @@ echo summarize("Riley", 1204) . PHP_EOL;
 + status: shipped
 ```
 
----
-
 ## Tables
 
 | Milestone | Owner | Due Date   | Status      |
 | :-------- | :---- | :--------- | :---------- |
-| Spec      | Morgan | 2026-06-08 | Complete    |
-| MVP       | Taylor | 2026-06-15 | In Progress |
-| Launch    | Jordan | 2026-06-22 | Planned     |
+| Glyph Lab | Morgan | 2026-06-08 | Complete    |
+| Link Forge | Taylor | 2026-06-15 | In Progress |
+| Moon Launch | Jordan | 2026-06-22 | Planned     |
 
 | Left aligned | Center aligned | Right aligned |
 | :----------- | :------------: | ------------: |
-| headings     |      big       |             7 |
-| callouts     |    styled      |            42 |
-| tables       |     boxed      |           108 |
-| parser       |     ready      |          1204 |
-| renderer     |    polished    |         48217 |
-| images       |    embedded    |        309884 |
-| links        |   clickable    |     431204928 |
+| giant titles |     loud       |             7 |
+| warning bells |   glowing    |            42 |
+| table boxes  |    squared    |           108 |
+| parser gears |    humming    |          1204 |
+| render polish |  sparkling   |         48217 |
+| image portals |   embedded   |        309884 |
+| link lasers  |   clickable   |     431204928 |
 
 [roadmap]: https://github.com/parf/Kitty-Markdown-Viewer "Renderer roadmap"

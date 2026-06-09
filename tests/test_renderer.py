@@ -52,6 +52,12 @@ class RendererTests(unittest.TestCase):
             output = make_renderer(Path(temp)).render("Ship date: 2026-03-10")
         self.assertIn("\x1b[38;2;255;175;95m2026-03-10\x1b[0m", output)
 
+    def test_paths_are_colored(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp)).render("Config: ~/.config/cat-md/config.toml and /home/parf/bin/cat-md")
+        self.assertIn("\x1b[38;2;215;175;255m~/.config/cat-md/config.toml\x1b[0m", output)
+        self.assertIn("\x1b[38;2;215;175;255m/home/parf/bin/cat-md\x1b[0m", output)
+
     def test_large_numbers_style_groups(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = make_renderer(Path(temp)).render("Values: 108 1204 48217 309884 1204928")
@@ -155,6 +161,19 @@ class RendererTests(unittest.TestCase):
         self.assertIn('\x1b[38;2;255;215;95m"summary"', output)
         self.assertIn('\x1b[38;2;95;215;255mh2', output)
 
+    def test_code_block_highlights_shell_commands(self) -> None:
+        markdown = "```bash\nPYTHONPATH=src python3 -m unittest discover -s tests -v\npython3 scripts/build_zipapp.py\n/home/parf/bin/cat-md --help\n./dist/cat-md --help\n```"
+        with tempfile.TemporaryDirectory() as temp:
+            output = make_renderer(Path(temp), width=100).render(markdown)
+        self.assertIn('\x1b[38;2;135;255;175mPYTHONPATH=', output)
+        self.assertIn('\x1b[38;2;95;215;255mpython3', output)
+        self.assertIn('\x1b[38;2;215;175;255munittest', output)
+        self.assertIn('\x1b[38;2;255;95;135m-m', output)
+        self.assertIn('\x1b[38;2;215;175;255mscripts/build_zipapp.py', output)
+        self.assertIn('\x1b[38;2;215;175;255m/home/parf/bin/cat-md', output)
+        self.assertIn('\x1b[38;2;215;175;255m./dist/cat-md', output)
+        self.assertIn('\x1b[38;2;255;95;135m--help', output)
+
     def test_html_br_and_raw_html(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = make_renderer(Path(temp)).render("a<br>b <b>raw</b>")
@@ -226,8 +245,9 @@ class RendererTests(unittest.TestCase):
             with mock.patch("kitty_markdown_viewer.renderer.subprocess.run", return_value=completed) as run:
                 output = renderer.render("![Alt text](image.png)", source=Source(path=root / "doc.md"))
         command = run.call_args.args[0]
-        self.assertIn("--place", command)
-        self.assertIn("40x7@0x0", command)
+        self.assertNotIn("--place", command)
+        self.assertIn("--stdin", command)
+        self.assertIn("no", command)
         self.assertIn("<image>", output)
         self.assertIn("Alt text", output)
 

@@ -56,6 +56,12 @@ PHP_TAG_RE = re.compile(r"<\?php|\?>")
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->")
 HTML_TAG_RE = re.compile(r"(</?)([A-Za-z][A-Za-z0-9:-]*)([^>]*?)(/?>)")
 HTML_ATTR_RE = re.compile(r"([A-Za-z_:][A-Za-z0-9_:.:-]*)(\s*=\s*)(\"(?:\\.|[^\"])*\"|'(?:\\.|[^'])*')")
+SHELL_ASSIGN_RE = re.compile(r"(^|\s)([A-Za-z_][A-Za-z0-9_]*=)([^\s]+)")
+SHELL_FLAG_RE = re.compile(r"(?<!\S)(-{1,2}[A-Za-z0-9][A-Za-z0-9_-]*)(?!\S)")
+SHELL_PATH_RE = re.compile(r"(?<!\S)((?:~|/|\./|\.\./)?[A-Za-z0-9_./-]+/[A-Za-z0-9_./-]+)(?!\S)")
+TEXT_PATH_RE = re.compile(r"(?<![\w/.-])((?:~|/|\./|\.\./)[A-Za-z0-9_./-]*[A-Za-z0-9_-](?:\.[A-Za-z0-9_-]+)?)(?![\w/.-])")
+SHELL_COMMAND_RE = re.compile(r"^(\s*)([A-Za-z0-9_./-]+)")
+SHELL_MODULE_RE = re.compile(r"(?<=\s-m\s)([A-Za-z_][A-Za-z0-9_.]*)")
 CALLOUTS = {
     "NOTE": ("🛈", "h2"),
     "TIP": ("💡", "h4"),
@@ -269,6 +275,8 @@ class MarkdownRenderer:
             return self._highlight_php_line(line)
         if language in {"html", "htm"}:
             return self._highlight_html_line(line)
+        if language in {"bash", "sh", "shell", "zsh"}:
+            return self._highlight_shell_line(line)
         return self._highlight_code_comments(line)
 
     def _highlight_json_line(self, line: str) -> str:
@@ -421,6 +429,26 @@ class MarkdownRenderer:
             return open_part + self._color("code_function") + name + RESET + rendered_attrs + close_part
 
         return HTML_TAG_RE.sub(replace_tag, line)
+
+    def _highlight_shell_line(self, line: str) -> str:
+        if line.lstrip().startswith("#"):
+            return self._highlight_code_comments(line)
+
+        strings: list[str] = []
+
+        def store_string(match: re.Match[str]) -> str:
+            strings.append(self._color("json_string") + match.group(0) + RESET)
+            return f"\0s{len(strings) - 1}\0"
+
+        line = JSON_STRING_RE.sub(store_string, line)
+        line = SHELL_ASSIGN_RE.sub(lambda m: m.group(1) + self._color("code_macro") + m.group(2) + RESET + self._color("json_string") + m.group(3) + RESET, line)
+        line = SHELL_COMMAND_RE.sub(lambda m: m.group(1) + self._color("code_type" if "/" in m.group(2) else "code_function") + m.group(2) + RESET, line)
+        line = SHELL_MODULE_RE.sub(lambda m: self._color("code_type") + m.group(1) + RESET, line)
+        line = SHELL_PATH_RE.sub(lambda m: self._color("code_type") + m.group(1) + RESET, line)
+        line = SHELL_FLAG_RE.sub(lambda m: self._color("code_keyword") + m.group(1) + RESET, line)
+        for idx, value in enumerate(strings):
+            line = line.replace(f"\0s{idx}\0", value)
+        return line
 
     def _code_line_style(self, text: str, default: str) -> str:
         stripped = text.lstrip()
@@ -618,9 +646,7 @@ class MarkdownRenderer:
         return output
 
     def _run_icat(self, path: Path) -> str:
-        width = min(self.config.image_max_width or self.options.width, self.options.width)
-        height = max(0, self.config.image_max_height)
-        command = ["kitten", "icat", "--align", "left", "--transfer-mode", "detect", "--place", f"{width}x{height}@0x0", str(path)]
+        command = ["kitten", "icat", "--align", "left", "--transfer-mode", "detect", "--stdin", "no", str(path)]
         try:
             result = subprocess.run(command, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         except OSError as exc:
@@ -675,10 +701,16 @@ class MarkdownRenderer:
         return f"{ESC}[38;2;{color[0]};{color[1]};{color[2]}m{ESC}[58;2;{underline[0]};{underline[1]};{underline[2]}m{ESC}[4:1m"
 
     def _render_text(self, text: str) -> str:
-        rendered = render_task_markers(text, self._color("h4"), self._color("muted"))
-        rendered = colorize_dates(rendered, self._color("date"))
-        rendered = colorize_large_numbers(rendered, self._color("muted"), self._color("number_major"))
-        return linkify_bare(rendered, self._link_style())
+        return render_text_features(
+            text,
+            checked_style=self._color("h4"),
+            unchecked_style=self._color("muted"),
+            date_style=self._color("date"),
+            muted_style=self._color("muted"),
+            major_number_style=self._color("number_major"),
+            path_style=self._color("code_type"),
+            link_style=self._link_style(),
+        )
 
 
 def resolve_url(value: str, source: Source | None) -> str:
@@ -715,6 +747,50 @@ def linkify_bare(text: str, style: str) -> str:
     return "".join(pieces)
 
 
+def render_text_features(
+    text: str,
+    *,
+    checked_style: str,
+    unchecked_style: str,
+    date_style: str,
+    muted_style: str,
+    major_number_style: str,
+    path_style: str,
+    link_style: str,
+) -> str:
+    pieces: list[str] = []
+    pos = 0
+    for match in URL_RE.finditer(text):
+        start, end = match.span("url")
+        url = match.group("url")
+        trailing = ""
+        while url and url[-1] in ".,;:!?)]}":
+            trailing = url[-1] + trailing
+            url = url[:-1]
+            end -= 1
+        pieces.append(render_non_url_text(text[pos:start], checked_style, unchecked_style, date_style, muted_style, major_number_style, path_style))
+        pieces.append(link_escape(url, url, link_style))
+        pieces.append(render_non_url_text(trailing, checked_style, unchecked_style, date_style, muted_style, major_number_style, path_style))
+        pos = match.end("url")
+    pieces.append(render_non_url_text(text[pos:], checked_style, unchecked_style, date_style, muted_style, major_number_style, path_style))
+    return "".join(pieces)
+
+
+def render_non_url_text(
+    text: str,
+    checked_style: str,
+    unchecked_style: str,
+    date_style: str,
+    muted_style: str,
+    major_number_style: str,
+    path_style: str,
+) -> str:
+    text = render_task_markers(text, checked_style, unchecked_style)
+    text = colorize_dates(text, date_style)
+    text = colorize_large_numbers(text, muted_style, major_number_style)
+    return colorize_paths(text, path_style)
+
+
 def render_task_markers(text: str, checked_style: str, unchecked_style: str) -> str:
     def replace(match: re.Match[str]) -> str:
         prefix = match.group("prefix")
@@ -743,6 +819,10 @@ def colorize_large_numbers(text: str, muted_style: str, major_style: str) -> str
         return value[:-3] + muted_style + value[-3:] + RESET
 
     return LARGE_NUMBER_RE.sub(replace, text)
+
+
+def colorize_paths(text: str, style: str) -> str:
+    return TEXT_PATH_RE.sub(lambda m: style + m.group(1) + RESET, text)
 
 
 def sgr_fg(hex_color: str) -> str:
